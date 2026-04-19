@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="客層記録">
+<title>客層記録</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
+    background: #ECEEF2;
+    width: 100vw; height: 100vh; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+
+  .main { display: flex; height: 100vh; }
+
+  /* LEFT */
+  .left { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 10px 12px; overflow-y: auto; min-width: 0; }
+  .header { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  .header-title { font-size: 17px; font-weight: 800; color: #1A1A2E; }
+  .badge { font-size: 12px; font-weight: 700; color: #E8553A; background: #FFF0ED; padding: 3px 9px; border-radius: 20px; }
+  .reset-btn {
+    font-size: 12px; font-weight: 600; color: #888; background: #DDDFE3;
+    border: none; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+  }
+
+  .top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
+
+  .cat-card { background: #FFF; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .cat-label { display: flex; justify-content: space-between; align-items: center; padding: 5px 12px; }
+  .cat-label-text { font-size: 13px; font-weight: 800; color: #FFF; letter-spacing: 0.03em; }
+  .cat-check {
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.22); padding: 1px 8px; border-radius: 10px;
+  }
+  .cat-options { display: grid; gap: 5px; padding: 6px 8px 8px; }
+
+  .opt-btn {
+    padding: 9px 2px; border-radius: 7px; font-size: 12.5px; cursor: pointer;
+    transition: all 0.1s ease; text-align: center; line-height: 1.2;
+    border: 2px solid transparent; font-weight: 500; font-family: inherit;
+  }
+  .opt-btn.selected { font-weight: 700; transform: scale(0.97); }
+
+  /* RIGHT */
+  .right { width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 10px 0; }
+  .submit-btn {
+    width: 100%; padding: 16px 10px; border: none; border-radius: 12px;
+    font-size: 17px; font-weight: 800; color: #FFF; cursor: pointer;
+    transition: all 0.15s ease; letter-spacing: 0.04em; font-family: inherit; flex-shrink: 0;
+  }
+  .submit-btn:disabled { opacity: 0.6; }
+
+  .history-wrap {
+    flex: 1; background: #FFF; border-radius: 10px; display: flex;
+    flex-direction: column; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .history-header { font-size: 13px; font-weight: 700; color: #666; padding: 10px 12px 4px; flex-shrink: 0; }
+  .history-scroll { flex: 1; overflow-y: auto; padding: 0 10px 10px; }
+  .history-empty { font-size: 12px; color: #BBB; text-align: center; padding: 30px 0; }
+
+  .history-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid #F0F0F0; }
+  .history-left { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .history-meta { display: flex; align-items: center; gap: 4px; }
+  .history-time { font-size: 10px; color: #999; font-weight: 500; }
+  .history-icon { font-size: 10px; }
+  .history-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+  .history-tag { font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; }
+
+  .delete-btn {
+    flex-shrink: 0; height: 28px; border: none; border-radius: 6px;
+    font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all 0.15s ease; padding: 0 7px; min-width: 34px; font-family: inherit;
+    background: #F0F0F0; color: #999;
+  }
+  .delete-btn.confirm { background: #E74C3C; color: #FFF; min-width: 52px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    padding: 10px 28px; border-radius: 10px; color: #FFF;
+    font-size: 15px; font-weight: 700; z-index: 999;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    transition: opacity 0.3s ease;
+  }
+  .toast.hidden { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="toast hidden" id="toast"></div>
+
+<div class="main">
+  <!-- LEFT -->
+  <div class="left">
+    <div class="header">
+      <div class="header-left">
+        <span style="font-size:18px">📋</span>
+        <span class="header-title">客層記録</span>
+        <span class="badge" id="badge">0/5</span>
+      </div>
+      <button class="reset-btn" onclick="resetAll()">リセット</button>
+    </div>
+
+    <div class="top-grid" id="topGrid"></div>
+    <div id="bottomGrid"></div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <button class="submit-btn" id="submitBtn" onclick="handleSubmit()">あと5項目</button>
+    <div class="history-wrap">
+      <div class="history-header" id="historyHeader">記録履歴</div>
+      <div class="history-scroll" id="historyScroll">
+        <div class="history-empty">まだ記録がありません</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyoOMKcAIb4Hxa0SSxXytSiiH2FsbM5KsjUZ_dYO6rp1JHHm6MAvxuoHbp1drwMwN50/exec";
+
+const CATEGORIES = [
+  { id: "age", label: "年代", color: "#E8553A", colorLight: "#FFF0ED",
+    options: ["〜10代","20代","30代","40代","50代","60代〜"], cols: 6 },
+  { id: "visit", label: "来店回数", color: "#2E86DE", colorLight: "#EAF2FD",
+    options: ["リピーター","初回","初回(LINE)","リピーター(LINE)"], cols: 4 },
+  { id: "gender", label: "性別", color: "#10AC84", colorLight: "#E8F8F3",
+    options: ["男性","女性"], cols: 2 },
+  { id: "purchase_reason", label: "購入理由", color: "#F39C12", colorLight: "#FEF5E0",
+    options: ["プレゼント","自分用","プレゼント+自分用","予約販売"], cols: 4 },
+  { id: "visit_reason", label: "来店理由", color: "#8E44AD", colorLight: "#F4EAF7",
+    options: ["通りがかり","口コミ","Instagram","公式LINE","SEO・MEO","HP",
+      "チラシ","外部メディア","関係者の紹介","近隣店舗","キッチンカー","店舗スタッフ",
+      "取引先","主催イベント","POPUP","予約販売","オーナー・営業","その他"], cols: 6 },
+];
+
+let selections = {};
+let history = [];
+let confirmingDelete = null;
+let confirmTimer = null;
+let sending = false;
+
+// ===== 初期化 =====
+function init() {
+  const topGrid = document.getElementById("topGrid");
+  const bottomGrid = document.getElementById("bottomGrid");
+
+  CATEGORIES.forEach(cat => {
+    const card = buildCatCard(cat);
+    if (cat.id === "visit_reason") {
+      bottomGrid.appendChild(card);
+    } else {
+      topGrid.appendChild(card);
+    }
+  });
+  updateUI();
+}
+
+function buildCatCard(cat) {
+  const card = document.createElement("div");
+  card.className = "cat-card";
+  card.id = `card-${cat.id}`;
+
+  const label = document.createElement("div");
+  label.className = "cat-label";
+  label.style.backgroundColor = cat.color;
+  label.innerHTML = `<span class="cat-label-text">${cat.label}</span><span class="cat-check" id="check-${cat.id}" style="display:none">✓</span>`;
+  card.appendChild(label);
+
+  const opts = document.createElement("div");
+  opts.className = "cat-options";
+  opts.style.gridTemplateColumns = `repeat(${cat.cols}, 1fr)`;
+
+  cat.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "opt-btn";
+    btn.textContent = opt;
+    btn.style.backgroundColor = cat.colorLight;
+    btn.style.color = "#333";
+    btn.dataset.catId = cat.id;
+    btn.dataset.option = opt;
+    btn.onclick = () => handleSelect(cat.id, opt);
+    opts.appendChild(btn);
+  });
+
+  card.appendChild(opts);
+  return card;
+}
+
+// ===== 選択 =====
+function handleSelect(catId, option) {
+  if (selections[catId] === option) {
+    delete selections[catId];
+  } else {
+    selections[catId] = option;
+  }
+  updateUI();
+}
+
+function resetAll() {
+  selections = {};
+  updateUI();
+}
+
+// ===== UI更新 =====
+function updateUI() {
+  const count = Object.keys(selections).length;
+  document.getElementById("badge").textContent = `${count}/5`;
+
+  // 登録ボタン
+  const btn = document.getElementById("submitBtn");
+  if (count === 5) {
+    btn.textContent = "登録する";
+    btn.style.backgroundColor = "#E8553A";
+    btn.style.opacity = "1";
+  } else {
+    btn.textContent = `あと${5 - count}項目`;
+    btn.style.backgroundColor = "#AAB2BD";
+    btn.style.opacity = "0.45";
+  }
+
+  // 各ボタンの状態
+  CATEGORIES.forEach(cat => {
+    const check = document.getElementById(`check-${cat.id}`);
+    if (selections[cat.id]) {
+      check.style.display = "";
+      check.textContent = cat.id === "visit_reason" ? `✓ ${selections[cat.id]}` : "✓";
+    } else {
+      check.style.display = "none";
+    }
+
+    const btns = document.querySelectorAll(`[data-cat-id="${cat.id}"]`);
+    btns.forEach(btn => {
+      const sel = btn.dataset.option === selections[cat.id];
+      btn.style.backgroundColor = sel ? cat.color : cat.colorLight;
+      btn.style.color = sel ? "#FFF" : "#333";
+      btn.style.borderColor = sel ? cat.color : "transparent";
+      btn.style.fontWeight = sel ? "700" : "500";
+      btn.style.boxShadow = sel ? `0 2px 6px ${cat.color}44` : "none";
+      btn.classList.toggle("selected", sel);
+    });
+  });
+}
+
+// ===== 送信 =====
+async function handleSubmit() {
+  const count = Object.keys(selections).length;
+  if (count < 5) {
+    const missing = CATEGORIES.filter(c => !selections[c.id]).map(c => c.label).join("、");
+    showToast(`未選択: ${missing}`, "warn");
+    return;
+  }
+  if (sending) return;
+
+  const timestamp = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  const entry = { timestamp, syncStatus: "sending", ...selections };
+  history.unshift(entry);
+  if (history.length > 30) history.pop();
+
+  const savedSelections = { ...selections };
+  selections = {};
+  updateUI();
+  renderHistory();
+
+  // フラッシュ
+  const btn = document.getElementById("submitBtn");
+  btn.style.backgroundColor = "#27AE60";
+  btn.style.transform = "scale(0.97)";
+  setTimeout(() => { btn.style.transform = "scale(1)"; updateUI(); }, 400);
+
+  // GAS送信（JSONP）
+  sending = true;
+  btn.disabled = true;
+
+  try {
+    await sendToGAS(savedSelections);
+    history[0].syncStatus = "synced";
+    showToast("登録しました ✓", "success");
+  } catch (err) {
+    history[0].syncStatus = "error";
+    showToast("送信エラー（ローカル保存済み）", "error");
+  } finally {
+    sending = false;
+    btn.disabled = false;
+    renderHistory();
+  }
+}
+
+function sendToGAS(data) {
+  return new Promise((resolve, reject) => {
+    const params = new URLSearchParams();
+    Object.entries(data).forEach(([k, v]) => params.append(k, v));
+
+    const cbName = "_gasCb_" + Date.now();
+    const timeout = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 10000);
+
+    window[cbName] = (result) => {
+      cleanup();
+      if (result && result.status === "ok") resolve(result);
+      else reject(new Error(result?.message || "unknown"));
+    };
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+    }
+
+    const script = document.createElement("script");
+    script.id = cbName;
+    script.src = `${GAS_URL}?${params.toString()}&callback=${cbName}`;
+    script.onerror = () => { cleanup(); reject(new Error("network")); };
+    document.body.appendChild(script);
+  });
+}
+
+// ===== 履歴 =====
+function renderHistory() {
+  const container = document.getElementById("historyScroll");
+  const header = document.getElementById("historyHeader");
+  header.textContent = history.length > 0 ? `記録履歴 (${history.length})` : "記録履歴";
+
+  if (history.length === 0) {
+    container.innerHTML = '<div class="history-empty">まだ記録がありません</div>';
+    return;
+  }
+
+  const icons = { synced: "☁️", sending: "⏳", error: "⚠️", local: "📱" };
+
+  container.innerHTML = history.map((entry, i) => `
+    <div class="history-row">
+      <div class="history-left">
+        <div class="history-meta">
+          <span class="history-icon">${icons[entry.syncStatus] || "📱"}</span>
+          <span class="history-time">${entry.timestamp}</span>
+        </div>
+        <div class="history-tags">
+          ${CATEGORIES.map(cat =>
+            `<span class="history-tag" style="background:${cat.colorLight};color:${cat.color}">${entry[cat.id]}</span>`
+          ).join("")}
+        </div>
+      </div>
+      <button class="delete-btn ${confirmingDelete === i ? 'confirm' : ''}"
+        onclick="handleDelete(${i})">${confirmingDelete === i ? "確定" : "✕"}</button>
+    </div>
+  `).join("");
+}
+
+function handleDelete(index) {
+  if (confirmingDelete === index) {
+    history.splice(index, 1);
+    confirmingDelete = null;
+    if (confirmTimer) clearTimeout(confirmTimer);
+    renderHistory();
+    showToast("取り消しました", "warn");
+  } else {
+    confirmingDelete = index;
+    if (confirmTimer) clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(() => { confirmingDelete = null; renderHistory(); }, 3000);
+    renderHistory();
+  }
+}
+
+// ===== トースト =====
+let toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.backgroundColor = type === "warn" ? "#F39C12" : type === "error" ? "#E74C3C" : "#27AE60";
+  el.classList.remove("hidden");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 2500);
+}
+
+// ===== 起動 =====
+init();
+</script>
+</body>
+</html>
