@@ -215,6 +215,18 @@
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
 
+  // URLクエリパラメータ(?session=evening など)でタブを自動選択
+  (function applySessionFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("session");
+    if (requested === "morning" || requested === "evening") {
+      currentSession = requested;
+      document.querySelectorAll(".session-toggle button").forEach(b => {
+        b.classList.toggle("active", b.dataset.session === requested);
+      });
+    }
+  })();
+
   function renderRows() {
     denomBody.innerHTML = "";
     DENOMINATIONS.forEach(d => {
@@ -304,7 +316,7 @@
       });
 
       if (result && result.success) {
-        statusMsg.textContent = "記録しました。この合計金額をSquareに入力してください。";
+        statusMsg.textContent = "記録しました。この金額をSquareに入力してください。";
         statusMsg.className = "status success";
       } else {
         throw new Error((result && result.message) || "記録に失敗しました");
