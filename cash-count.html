@@ -158,6 +158,19 @@
   }
   .status.success { color: var(--accent); font-weight: 600; }
   .status.error { color: #b3432b; font-weight: 600; }
+
+  .existing-banner {
+    display: none;
+    margin: 12px 20px 0;
+    padding: 10px 14px;
+    background: #FFF4E5;
+    border: 1px solid #F5C784;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #8a5a12;
+    line-height: 1.5;
+  }
+  .existing-banner.show { display: block; }
 </style>
 </head>
 <body>
@@ -166,6 +179,8 @@
   <a class="back" href="index.html">←戻る</a>
   <h1>現金カウント</h1>
 </header>
+
+<div class="existing-banner" id="existingBanner"></div>
 
 <main>
   <div class="session-toggle" id="sessionToggle">
@@ -262,7 +277,58 @@
     document.querySelectorAll(".session-toggle button").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     currentSession = btn.dataset.session;
+    updateExistingBanner();
   });
+
+  // ===== 既存記録チェック（当日、朝/晩ごとの既存値を取得しバナー表示） =====
+  let todayCashStatus = null;
+
+  function updateExistingBanner() {
+    const banner = document.getElementById("existingBanner");
+    if (!todayCashStatus) {
+      banner.classList.remove("show");
+      return;
+    }
+    const record = todayCashStatus[currentSession];
+    if (record && record.recorded) {
+      const label = currentSession === "morning" ? "朝" : "晩";
+      banner.textContent = `⚠️ 本日の${label}はすでに ${"¥" + Number(record.total).toLocaleString()} で記録済みです（${record.time}）。再入力すると上書きされます。`;
+      banner.classList.add("show");
+    } else {
+      banner.classList.remove("show");
+    }
+  }
+
+  function fetchTodayCashStatus() {
+    const callbackName = "_existingStatusCb_" + Date.now();
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => cleanup(), 8000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (response) => {
+      cleanup();
+      if (response && response.success) {
+        todayCashStatus = { morning: response.morning, evening: response.evening };
+        updateExistingBanner();
+      }
+    };
+
+    const query = new URLSearchParams({
+      action: "checkTodayCashCountStatus",
+      callback: callbackName
+    }).toString();
+
+    script.src = `${GAS_URL}?${query}`;
+    script.onerror = () => cleanup();
+    document.body.appendChild(script);
+  }
+
+  fetchTodayCashStatus();
 
   function submitViaJsonp(params) {
     return new Promise((resolve, reject) => {
@@ -318,6 +384,15 @@
       if (result && result.success) {
         statusMsg.textContent = "記録しました。この金額をSquareに入力してください。";
         statusMsg.className = "status success";
+
+        // 既存記録バナーを即時更新（再取得を待たず反映）
+        if (!todayCashStatus) todayCashStatus = { morning: {recorded:false}, evening: {recorded:false} };
+        todayCashStatus[currentSession] = {
+          recorded: true,
+          total: total,
+          time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })
+        };
+        updateExistingBanner();
       } else {
         throw new Error((result && result.message) || "記録に失敗しました");
       }
