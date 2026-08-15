@@ -140,6 +140,55 @@
     }
     .submit-fixed .submit-btn { display: block; }
   }
+ .cash-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 1000; /* 既存の .toast (z-index:999) より上に */
+    align-items: center;
+    justify-content: center;
+  }
+  .cash-modal-overlay.show {
+    display: flex;
+  }
+  .cash-modal-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px 20px;
+    max-width: 320px;
+    width: calc(100% - 40px);
+    text-align: center;
+  }
+  .cash-modal-box .icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+  }
+  .cash-modal-box p {
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 0 0 20px;
+  }
+  .cash-modal-box .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+  .cash-modal-box button {
+    flex: 1;
+    padding: 12px 0;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+  }
+  .cash-modal-box .btn-primary {
+    background: #2f6f4f;
+    color: #fff;
+    font-weight: 600;
+  }
+  .cash-modal-box .btn-secondary {
+    background: #f0f0f0;
+    color: #555;
+  }
 </style>
 </head>
 <body>
@@ -184,7 +233,38 @@
 
 <script>
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyoOMKcAIb4Hxa0SSxXytSiiH2FsbM5KsjUZ_dYO6rp1JHHm6MAvxuoHbp1drwMwN50/exec";
-
+// ページ読み込み時に、本日の朝カウントが未記録なら警告モーダルを表示
+  (function checkMorningCashCount() {
+    const callbackName = "checkCashStatus_" + Date.now();
+    const script = document.createElement("script");
+ 
+    window[callbackName] = (response) => {
+      delete window[callbackName];
+      script.remove();
+ 
+      if (response && response.success && response.morning === false) {
+        document.getElementById("cashCountModal").classList.add("show");
+      }
+    };
+ 
+    // GAS_URL は既存アプリで定義済みの変数をそのまま使用してください
+    const query = new URLSearchParams({
+      action: "checkTodayCashCountStatus",
+      callback: callbackName
+    }).toString();
+ 
+    script.src = `${GAS_URL}?${query}`;
+    document.body.appendChild(script);
+  })();
+ 
+  document.getElementById("cashModalLater").addEventListener("click", () => {
+    document.getElementById("cashCountModal").classList.remove("show");
+  });
+ 
+  document.getElementById("cashModalGo").addEventListener("click", () => {
+    window.location.href = "cash-count.html";
+  });
+ 
 const CATEGORIES = [
   { id: "purchase_location", label: "購入場所", color: "#1ABC9C", colorLight: "#E8FAF5",
     options: ["店頭","マルシェ","その他"], cols: 3, mobileCols: 3 },
@@ -440,4 +520,14 @@ function showToast(msg, type) {
 init();
 </script>
 </body>
+<div class="cash-modal-overlay" id="cashCountModal">
+  <div class="cash-modal-box">
+    <div class="icon">⚠️</div>
+    <p>本日の朝の現金カウントが<br>まだ記録されていません</p>
+    <div class="btn-row">
+      <button class="btn-secondary" id="cashModalLater">あとで</button>
+      <button class="btn-primary" id="cashModalGo">今すぐ入力する</button>
+    </div>
+  </div>
+</div>
 </html>
