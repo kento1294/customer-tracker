@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>現金カウント</title>
+<style>
+  :root {
+    --accent: #2f6f4f;
+    --accent-light: #eaf3ee;
+    --border: #d9dee0;
+    --text: #22292a;
+    --muted: #6b7677;
+    --bg: #f7f8f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 16px 20px 12px;
+    background: #fff;
+    border-bottom: 1px solid #e4e7e7;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header a.back {
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  header h1 {
+    font-size: 17px;
+    margin: 0;
+    font-weight: 600;
+  }
+  .session-toggle {
+    display: flex;
+    margin: 16px 20px 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .session-toggle button {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    background: #fff;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .session-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  main {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 8px 20px 140px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  th, td {
+    padding: 10px 10px;
+    border-bottom: 1px solid #eef0f0;
+    font-size: 15px;
+    text-align: left;
+  }
+  th {
+    background: #fafbfb;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 12px;
+  }
+  td.denom {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    width: 30%;
+  }
+  td.count input {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: right;
+    -moz-appearance: textfield;
+  }
+  td.count input::-webkit-outer-spin-button,
+  td.count input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  td.subtotal {
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    width: 30%;
+  }
+  .total-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #fff;
+    border-top: 1px solid #e4e7e7;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .total-row .label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .total-row .value {
+    font-size: 26px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  button.submit {
+    width: 100%;
+    padding: 14px 0;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  button.submit:disabled {
+    background: #b9c4bd;
+  }
+  .status {
+    text-align: center;
+    font-size: 13px;
+    margin-top: 10px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .status.success { color: var(--accent); font-weight: 600; }
+  .status.error { color: #b3432b; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="index.html">←戻る</a>
+  <h1>現金カウント</h1>
+</header>
+
+<main>
+  <div class="session-toggle" id="sessionToggle">
+    <button data-session="morning" class="active">朝（開店時）</button>
+    <button data-session="evening">晩（閉店時）</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>金種</th><th>枚数</th><th>小計</th></tr>
+    </thead>
+    <tbody id="denomBody">
+      <!-- rows injected by JS -->
+    </tbody>
+  </table>
+</main>
+
+<div class="total-bar">
+  <div class="total-row">
+    <span class="label">合計金額</span>
+    <span class="value" id="totalValue">¥0</span>
+  </div>
+  <button class="submit" id="submitBtn">この金額で記録する</button>
+  <div class="status" id="statusMsg"></div>
+</div>
+
+<script>
+  // ▼ 既存アプリと同じGAS Web APIのURLに合わせてください
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyoOMKcAIb4Hxa0SSxXytSiiH2FsbM5KsjUZ_dYO6rp1JHHm6MAvxuoHbp1drwMwN50/exec";
+
+  const DENOMINATIONS = [
+    { id: 10000, label: "¥10,000" },
+    { id: 5000,  label: "¥5,000" },
+    { id: 1000,  label: "¥1,000" },
+    { id: 500,   label: "¥500" },
+    { id: 100,   label: "¥100" },
+    { id: 50,    label: "¥50" },
+    { id: 10,    label: "¥10" },
+    { id: 5,     label: "¥5" },
+    { id: 1,     label: "¥1" }
+  ];
+
+  let currentSession = "morning";
+
+  const denomBody = document.getElementById("denomBody");
+  const totalValueEl = document.getElementById("totalValue");
+  const submitBtn = document.getElementById("submitBtn");
+  const statusMsg = document.getElementById("statusMsg");
+
+  function renderRows() {
+    denomBody.innerHTML = "";
+    DENOMINATIONS.forEach(d => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="denom">${d.label}</td>
+        <td class="count"><input type="number" inputmode="numeric" min="0" step="1" data-denom="${d.id}" placeholder="0"></td>
+        <td class="subtotal" id="subtotal-${d.id}">¥0</td>
+      `;
+      denomBody.appendChild(tr);
+    });
+  }
+
+  function calcTotal() {
+    let total = 0;
+    DENOMINATIONS.forEach(d => {
+      const input = document.querySelector(`input[data-denom="${d.id}"]`);
+      const count = parseInt(input.value, 10) || 0;
+      const subtotal = count * d.id;
+      total += subtotal;
+      document.getElementById(`subtotal-${d.id}`).textContent = "¥" + subtotal.toLocaleString();
+    });
+    totalValueEl.textContent = "¥" + total.toLocaleString();
+    return total;
+  }
+
+  renderRows();
+  denomBody.addEventListener("input", calcTotal);
+
+  document.getElementById("sessionToggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-session]");
+    if (!btn) return;
+    document.querySelectorAll(".session-toggle button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentSession = btn.dataset.session;
+  });
+
+  function submitViaJsonp(params) {
+    return new Promise((resolve, reject) => {
+      const callbackName = "cashCountCallback_" + Date.now();
+      const script = document.createElement("script");
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("タイムアウトしました"));
+      }, 10000);
+
+      function cleanup() {
+        clearTimeout(timeout);
+        delete window[callbackName];
+        script.remove();
+      }
+
+      window[callbackName] = (response) => {
+        cleanup();
+        resolve(response);
+      };
+
+      const query = new URLSearchParams({ ...params, callback: callbackName }).toString();
+      script.src = `${GAS_URL}?${query}`;
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("通信に失敗しました"));
+      };
+      document.body.appendChild(script);
+    });
+  }
+
+  submitBtn.addEventListener("click", async () => {
+    const total = calcTotal();
+    const counts = {};
+    DENOMINATIONS.forEach(d => {
+      const input = document.querySelector(`input[data-denom="${d.id}"]`);
+      counts[d.id] = parseInt(input.value, 10) || 0;
+    });
+
+    submitBtn.disabled = true;
+    statusMsg.textContent = "送信中...";
+    statusMsg.className = "status";
+
+    try {
+      const result = await submitViaJsonp({
+        action: "recordCashCount",
+        session: currentSession,          // "morning" or "evening"
+        total: total,
+        counts: JSON.stringify(counts),
+        timestamp: new Date().toISOString()
+      });
+
+      if (result && result.success) {
+        statusMsg.textContent = "記録しました。この金額をSquareに入力してください。";
+        statusMsg.className = "status success";
+      } else {
+        throw new Error((result && result.message) || "記録に失敗しました");
+      }
+    } catch (err) {
+      statusMsg.textContent = "エラー: " + err.message;
+      statusMsg.className = "status error";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
