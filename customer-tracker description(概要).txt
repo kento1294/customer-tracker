@@ -6,6 +6,8 @@
 外部ライブラリやフレームワークへの依存はゼロ。
 iPad mini（横画面）とiPhone 16（縦画面）の両方に対応するレスポンシブデザイン。
 GitHub Pagesでホスティングし、Safari上でPWAとして動作する。
+登録結果は以下スプシに出力
+https://docs.google.com/spreadsheets/d/1N1xtkaWvM_-zYHQxLeMuB9S2lcfq3uL5AQQLqKoOGC4/edit?gid=1179618592#gid=1179618592
 
 ---
 
