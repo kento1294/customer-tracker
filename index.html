@@ -131,6 +131,18 @@
   .cash-modal-box .btn-primary { background: #E8553A; color: #FFF; }
   .cash-modal-box .btn-secondary { background: #DDDFE3; color: #888; }
 
+  /* ===== 現金カウント：本日のステータス表示カード ===== */
+  .cash-status-card {
+    background: #FFF; border-radius: 10px; padding: 10px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06); flex-shrink: 0;
+  }
+  .cash-status-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .cash-status-label { font-weight: 700; color: #666; }
+  .cash-status-value { font-weight: 700; }
+  .cash-status-value.done { color: #2F6F4F; }
+  .cash-status-value.pending { color: #AAB2BD; }
+
   /* ===== DESKTOP / iPad mini landscape (700px+) ===== */
   @media (min-width: 700px) {
     body { width: 100vw; height: 100vh; overflow: hidden; }
@@ -197,6 +209,18 @@
   </div>
 </div>
 
+<!-- 現金カウント：晩の未入力リマインダーモーダル -->
+<div class="cash-modal-overlay" id="cashCountEveningModal">
+  <div class="cash-modal-box">
+    <div class="icon">⚠️</div>
+    <p>本日の晩の現金カウントが<br>まだ記録されていません</p>
+    <div class="btn-row">
+      <button class="btn-secondary" id="cashEveningModalLater">あとで</button>
+      <button class="btn-primary" id="cashEveningModalGo">今すぐ入力する</button>
+    </div>
+  </div>
+</div>
+
 <div class="main">
   <!-- LEFT: Categories -->
   <div class="left">
@@ -220,6 +244,16 @@
   <!-- RIGHT: Submit + History (iPad) -->
   <div class="right">
     <button class="submit-btn" id="submitBtn" onclick="handleSubmit()">あと6項目</button>
+    <div class="cash-status-card" id="cashStatusCard">
+      <div class="cash-status-item">
+        <span class="cash-status-label">💰朝</span>
+        <span class="cash-status-value pending" id="cashStatusMorning">確認中</span>
+      </div>
+      <div class="cash-status-item">
+        <span class="cash-status-label">💰晩</span>
+        <span class="cash-status-value pending" id="cashStatusEvening">確認中</span>
+      </div>
+    </div>
     <div class="history-wrap">
       <div class="history-header" id="historyHeader">記録履歴</div>
       <div class="history-scroll" id="historyScroll">
@@ -489,8 +523,35 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
-// ===== 現金カウント：朝の未入力チェック =====
-function checkMorningCashCount() {
+// ===== 現金カウント：本日のステータス確認（朝・晩） =====
+const EVENING_REMINDER_HOUR = 19; // 19:00以降に晩の未入力リマインダーを表示
+
+function formatYen(n) {
+  return "¥" + Number(n).toLocaleString();
+}
+
+function renderCashStatus(morning, evening) {
+  const mEl = document.getElementById("cashStatusMorning");
+  const eEl = document.getElementById("cashStatusEvening");
+
+  if (morning.recorded) {
+    mEl.textContent = `✓ ${formatYen(morning.total)} (${morning.time})`;
+    mEl.className = "cash-status-value done";
+  } else {
+    mEl.textContent = "未入力";
+    mEl.className = "cash-status-value pending";
+  }
+
+  if (evening.recorded) {
+    eEl.textContent = `✓ ${formatYen(evening.total)} (${evening.time})`;
+    eEl.className = "cash-status-value done";
+  } else {
+    eEl.textContent = "未入力";
+    eEl.className = "cash-status-value pending";
+  }
+}
+
+function checkCashStatus() {
   const callbackName = "_cashStatusCb_" + Date.now();
   const script = document.createElement("script");
   const timeout = setTimeout(() => cleanup(), 8000);
@@ -503,8 +564,16 @@ function checkMorningCashCount() {
 
   window[callbackName] = (response) => {
     cleanup();
-    if (response && response.success && response.morning === false) {
+    if (!response || !response.success) return;
+
+    renderCashStatus(response.morning, response.evening);
+
+    const nowHour = new Date().getHours(); // 端末がJST前提
+
+    if (!response.morning.recorded) {
       document.getElementById("cashCountModal").classList.add("show");
+    } else if (!response.evening.recorded && nowHour >= EVENING_REMINDER_HOUR) {
+      document.getElementById("cashCountEveningModal").classList.add("show");
     }
   };
 
@@ -522,11 +591,19 @@ document.getElementById("cashModalLater").addEventListener("click", () => {
   document.getElementById("cashCountModal").classList.remove("show");
 });
 document.getElementById("cashModalGo").addEventListener("click", () => {
-  window.location.href = "cash-count.html";
+  window.location.href = "cash-count.html?session=morning";
+});
+
+document.getElementById("cashEveningModalLater").addEventListener("click", () => {
+  document.getElementById("cashCountEveningModal").classList.remove("show");
+});
+document.getElementById("cashEveningModalGo").addEventListener("click", () => {
+  window.location.href = "cash-count.html?session=evening";
 });
 
 init();
-checkMorningCashCount();
+checkCashStatus();
+setInterval(checkCashStatus, 10 * 60 * 1000); // 10分ごとに自動再チェック（開きっぱなし対策）
 </script>
 </body>
 </html>
