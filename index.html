@@ -24,6 +24,12 @@
     font-size: 12px; font-weight: 600; color: #888; background: #DDDFE3;
     border: none; border-radius: 7px; padding: 5px 12px; cursor: pointer;
   }
+  .cash-link-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: #FFF0ED; text-decoration: none; font-size: 14px;
+    flex-shrink: 0;
+  }
 
   .top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
 
@@ -92,6 +98,39 @@
   }
   .toast.hidden { opacity: 0; pointer-events: none; }
 
+  /* ===== 現金カウント：朝の未入力リマインダーモーダル ===== */
+  .cash-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 1000; /* .toast(999)より上 */
+    align-items: center;
+    justify-content: center;
+  }
+  .cash-modal-overlay.show { display: flex; }
+  .cash-modal-box {
+    background: #FFF;
+    border-radius: 14px;
+    padding: 24px 20px;
+    max-width: 320px;
+    width: calc(100% - 40px);
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+  .cash-modal-box .icon { font-size: 32px; margin-bottom: 8px; }
+  .cash-modal-box p {
+    font-size: 15px; line-height: 1.5; margin: 0 0 20px;
+    color: #1A1A2E; font-weight: 600;
+  }
+  .cash-modal-box .btn-row { display: flex; gap: 10px; }
+  .cash-modal-box button {
+    flex: 1; padding: 12px 0; border-radius: 10px; border: none;
+    font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .cash-modal-box .btn-primary { background: #E8553A; color: #FFF; }
+  .cash-modal-box .btn-secondary { background: #DDDFE3; color: #888; }
+
   /* ===== DESKTOP / iPad mini landscape (700px+) ===== */
   @media (min-width: 700px) {
     body { width: 100vw; height: 100vh; overflow: hidden; }
@@ -140,60 +179,23 @@
     }
     .submit-fixed .submit-btn { display: block; }
   }
- .cash-modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 1000; /* 既存の .toast (z-index:999) より上に */
-    align-items: center;
-    justify-content: center;
-  }
-  .cash-modal-overlay.show {
-    display: flex;
-  }
-  .cash-modal-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 24px 20px;
-    max-width: 320px;
-    width: calc(100% - 40px);
-    text-align: center;
-  }
-  .cash-modal-box .icon {
-    font-size: 32px;
-    margin-bottom: 8px;
-  }
-  .cash-modal-box p {
-    font-size: 15px;
-    line-height: 1.5;
-    margin: 0 0 20px;
-  }
-  .cash-modal-box .btn-row {
-    display: flex;
-    gap: 10px;
-  }
-  .cash-modal-box button {
-    flex: 1;
-    padding: 12px 0;
-    border-radius: 10px;
-    border: none;
-    font-size: 14px;
-  }
-  .cash-modal-box .btn-primary {
-    background: #2f6f4f;
-    color: #fff;
-    font-weight: 600;
-  }
-  .cash-modal-box .btn-secondary {
-    background: #f0f0f0;
-    color: #555;
-  }
 </style>
 </head>
 <body>
 
 <div class="toast hidden" id="toast"></div>
+
+<!-- 現金カウント：朝の未入力リマインダーモーダル -->
+<div class="cash-modal-overlay" id="cashCountModal">
+  <div class="cash-modal-box">
+    <div class="icon">⚠️</div>
+    <p>本日の朝の現金カウントが<br>まだ記録されていません</p>
+    <div class="btn-row">
+      <button class="btn-secondary" id="cashModalLater">あとで</button>
+      <button class="btn-primary" id="cashModalGo">今すぐ入力する</button>
+    </div>
+  </div>
+</div>
 
 <div class="main">
   <!-- LEFT: Categories -->
@@ -203,6 +205,7 @@
         <span style="font-size:18px">📋</span>
         <span class="header-title">客層記録</span>
         <span class="badge" id="badge">0/6</span>
+        <a class="cash-link-btn" href="cash-count.html" title="現金カウント">💰</a>
       </div>
       <button class="reset-btn" onclick="resetAll()">リセット</button>
     </div>
@@ -233,38 +236,7 @@
 
 <script>
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyoOMKcAIb4Hxa0SSxXytSiiH2FsbM5KsjUZ_dYO6rp1JHHm6MAvxuoHbp1drwMwN50/exec";
-// ページ読み込み時に、本日の朝カウントが未記録なら警告モーダルを表示
-  (function checkMorningCashCount() {
-    const callbackName = "checkCashStatus_" + Date.now();
-    const script = document.createElement("script");
- 
-    window[callbackName] = (response) => {
-      delete window[callbackName];
-      script.remove();
- 
-      if (response && response.success && response.morning === false) {
-        document.getElementById("cashCountModal").classList.add("show");
-      }
-    };
- 
-    // GAS_URL は既存アプリで定義済みの変数をそのまま使用してください
-    const query = new URLSearchParams({
-      action: "checkTodayCashCountStatus",
-      callback: callbackName
-    }).toString();
- 
-    script.src = `${GAS_URL}?${query}`;
-    document.body.appendChild(script);
-  })();
- 
-  document.getElementById("cashModalLater").addEventListener("click", () => {
-    document.getElementById("cashCountModal").classList.remove("show");
-  });
- 
-  document.getElementById("cashModalGo").addEventListener("click", () => {
-    window.location.href = "cash-count.html";
-  });
- 
+
 const CATEGORIES = [
   { id: "purchase_location", label: "購入場所", color: "#1ABC9C", colorLight: "#E8FAF5",
     options: ["店頭","マルシェ","その他"], cols: 3, mobileCols: 3 },
@@ -517,18 +489,44 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
-init();
-</script>
- <div class="cash-modal-overlay" id="cashCountModal">
-  <div class="cash-modal-box">
-    <div class="icon">⚠️</div>
-    <p>本日の朝の現金カウントが<br>まだ記録されていません</p>
-    <div class="btn-row">
-      <button class="btn-secondary" id="cashModalLater">あとで</button>
-      <button class="btn-primary" id="cashModalGo">今すぐ入力する</button>
-    </div>
-  </div>
- </div>
-</body>
+// ===== 現金カウント：朝の未入力チェック =====
+function checkMorningCashCount() {
+  const callbackName = "_cashStatusCb_" + Date.now();
+  const script = document.createElement("script");
+  const timeout = setTimeout(() => cleanup(), 8000);
 
+  function cleanup() {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    script.remove();
+  }
+
+  window[callbackName] = (response) => {
+    cleanup();
+    if (response && response.success && response.morning === false) {
+      document.getElementById("cashCountModal").classList.add("show");
+    }
+  };
+
+  const query = new URLSearchParams({
+    action: "checkTodayCashCountStatus",
+    callback: callbackName
+  }).toString();
+
+  script.src = `${GAS_URL}?${query}`;
+  script.onerror = () => cleanup();
+  document.body.appendChild(script);
+}
+
+document.getElementById("cashModalLater").addEventListener("click", () => {
+  document.getElementById("cashCountModal").classList.remove("show");
+});
+document.getElementById("cashModalGo").addEventListener("click", () => {
+  window.location.href = "cash-count.html";
+});
+
+init();
+checkMorningCashCount();
+</script>
+</body>
 </html>
