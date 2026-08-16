@@ -36,6 +36,12 @@
     color: var(--muted);
     font-size: 15px;
   }
+  header .header-links { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  header .header-links a {
+    text-decoration: none; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px; background: #F0F0F0;
+  }
   header h1 {
     font-size: 17px;
     margin: 0;
@@ -178,6 +184,9 @@
 <header>
   <a class="back" href="index.html">←戻る</a>
   <h1>現金カウント</h1>
+  <div class="header-links">
+    <a href="daily-report.html" title="日次営業報告">📊</a>
+  </div>
 </header>
 
 <div class="existing-banner" id="existingBanner"></div>
