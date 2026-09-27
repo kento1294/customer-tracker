@@ -50,6 +50,20 @@
   }
   .existing-banner.show { display: block; }
 
+  /* 客層記録からの自動入力 */
+  .auto-bar {
+    margin: 12px 20px 0; padding: 10px 14px; background: #EAF2FD;
+    border: 1px solid #B9D3F3; border-radius: 10px; font-size: 12.5px; color: #1f4f86; line-height: 1.6;
+  }
+  .auto-bar .warn { color: #b3432b; font-weight: 700; }
+  .auto-bar button {
+    margin-top: 8px; width: 100%; padding: 9px 0; border: none; border-radius: 8px;
+    background: #2E86DE; color: #fff; font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .auto-bar button:disabled { background: #9BBFE6; }
+  .field input.auto { background: #F2F8FF; border-color: #B9D3F3; }
+  .section-note { font-size: 11px; color: var(--muted); padding: 0 12px 10px; }
+
   main { max-width: 560px; margin: 0 auto; padding: 8px 20px 140px; }
 
   .section {
@@ -104,6 +118,11 @@
 
 <div class="existing-banner" id="existingBanner"></div>
 
+<div class="auto-bar" id="autoBar">
+  <div id="autoMsg">客層記録を集計しています…</div>
+  <button id="recalcBtn">🔄 客層記録から集計して入力し直す</button>
+</div>
+
 <main>
 
   <div class="section">
@@ -143,7 +162,7 @@
   </div>
 
   <div class="section">
-    <div class="section-label" style="background:#8E44AD">事業カテゴリ別（一般の数字）</div>
+    <div class="section-label" style="background:#8E44AD">事業カテゴリ別（一般の数字）※手入力</div>
     <div class="section-body">
       <div class="field"><label>店舗・分析（小売のみ）</label><div class="input-wrap"><input type="number" inputmode="numeric" data-key="retail"><span class="unit-suffix">円</span></div></div>
       <div class="field"><label>サテライト</label><div class="input-wrap"><input type="number" inputmode="numeric" data-key="satellite"><span class="unit-suffix">円</span></div></div>
@@ -212,9 +231,11 @@
 
   async function checkExisting() {
     existingBanner.classList.remove("show");
+    let recorded = false;
     try {
       const res = await jsonp({ action: "getDailyReportStatus", date: dateInput.value });
       if (res && res.success && res.recorded) {
+        recorded = true;
         const parts = Object.keys(res.data)
           .filter(k => res.data[k] !== "" && res.data[k] !== null)
           .map(k => `${FIELD_LABELS[k] || k}: ${Number(res.data[k]).toLocaleString()}`);
@@ -232,14 +253,71 @@
     } catch (err) {
       // 確認失敗時は静かに無視（入力自体は継続できる）
     }
+    return recorded;
+  }
+
+  // ===== 客層記録からの自動入力 =====
+  // 自動入力する項目（事業カテゴリ別の金額は客層記録に無いので対象外）
+  const AUTO_KEYS = ["sales","general","referral","visitorsGeneral","visitorsFriend",
+    "buyersGeneral","buyersMember","buyersFriend","newCount","newAmount","repeatCount","repeatAmount"];
+  const autoMsg = document.getElementById("autoMsg");
+  const recalcBtn = document.getElementById("recalcBtn");
+
+  // overwrite=false：空欄だけ埋める / true：自動入力の項目をすべて上書き
+  async function applyAggregate(overwrite) {
+    recalcBtn.disabled = true;
+    autoMsg.textContent = "客層記録を集計しています…";
+    try {
+      const res = await jsonp({ action: "getDailyAggregate", date: dateInput.value });
+      if (!res || !res.success) throw new Error((res && res.message) || "集計に失敗しました");
+
+      if (res.records === 0) {
+        autoMsg.textContent = "この日の客層記録（店頭）はまだありません。";
+        return;
+      }
+      AUTO_KEYS.forEach(key => {
+        const input = document.querySelector(`input[data-key="${key}"]`);
+        if (!input) return;
+        if (overwrite || input.value === "") {
+          input.value = res.data[key];
+          input.classList.add("auto");
+        }
+      });
+      let msg = `客層記録（店頭 ${res.records}件）から集計しました。<strong>青い欄</strong>が自動入力です。確認・修正してから記録してください。`;
+      if (res.missingAmount > 0) {
+        msg += `<br><span class="warn">⚠️ 金額が入っていない会計が${res.missingAmount}件あります。売上金額が少なく出ている可能性があります。</span>`;
+      }
+      autoMsg.innerHTML = msg;
+    } catch (err) {
+      autoMsg.textContent = "客層記録の集計に失敗しました（手入力で記録できます）：" + err.message;
+    } finally {
+      recalcBtn.disabled = false;
+    }
+  }
+
+  recalcBtn.addEventListener("click", () => applyAggregate(true));
+
+  // 手で直した欄は自動入力の色を外す
+  document.querySelectorAll("input[data-key]").forEach(input => {
+    input.addEventListener("input", () => input.classList.remove("auto"));
+  });
+
+  // 開いたとき・日付を変えたとき：既存の記録があればそれを表示、無ければ客層記録から自動入力
+  async function loadForDate() {
+    const recorded = await checkExisting();
+    if (recorded) {
+      autoMsg.innerHTML = "この日はすでに記録済みのため、記録済みの数値を表示しています。客層記録の集計で入れ直す場合は下のボタンを押してください。";
+    } else {
+      await applyAggregate(false);
+    }
   }
 
   dateInput.addEventListener("change", () => {
-    document.querySelectorAll("input[data-key]").forEach(input => input.value = "");
-    checkExisting();
+    document.querySelectorAll("input[data-key]").forEach(input => { input.value = ""; input.classList.remove("auto"); });
+    loadForDate();
   });
 
-  checkExisting();
+  loadForDate();
 
   submitBtn.addEventListener("click", async () => {
     const data = {};
