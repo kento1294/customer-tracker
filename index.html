@@ -50,6 +50,11 @@
   .opt-btn.selected { font-weight: 700; transform: scale(0.97); }
 
   .memo-wrap { flex-shrink: 0; }
+  .amount-wrap { flex-shrink: 0; position: relative; }
+  .amount-wrap .memo-input { padding-right: 36px; text-align: right; }
+  .amount-wrap .memo-input:disabled { background: #F2F3F5; color: #AAA; }
+  .amount-wrap .unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 13px; color: #999; pointer-events: none; }
+  .amount-wrap.required .memo-input { border-color: #E8553A; }
   .memo-input {
     width: 100%; padding: 10px 12px; border: 2px solid #E0E2E6; border-radius: 10px;
     font-size: 16px; font-family: inherit; background: #FFF; color: #333;
@@ -237,6 +242,10 @@
 
     <div class="top-grid" id="topGrid"></div>
     <div id="bottomGrid"></div>
+    <div class="amount-wrap" id="amountWrap">
+      <input type="number" inputmode="numeric" min="0" id="amountInput" class="memo-input" placeholder="💴 会計金額（税込）" autocomplete="off">
+      <span class="unit">円</span>
+    </div>
     <div class="memo-wrap">
       <input type="text" id="memoInput" class="memo-input" placeholder="📝 メモ（任意）" autocomplete="off">
     </div>
@@ -282,12 +291,15 @@ const CATEGORIES = [
   { id: "gender", label: "性別", color: "#10AC84", colorLight: "#E8F8F3",
     options: ["男性","女性"], cols: 2, mobileCols: 2 },
   { id: "purchase_reason", label: "購入理由", color: "#F39C12", colorLight: "#FEF5E0",
-    options: ["プレゼント","自分用","プレゼント+自分用","予約販売"], cols: 4, mobileCols: 2 },
+    options: ["プレゼント","自分用","プレゼント+自分用","予約販売","購入なし（来店のみ）"], cols: 5, mobileCols: 3 },
   { id: "visit_reason", label: "来店理由", color: "#8E44AD", colorLight: "#F4EAF7",
     options: ["通りがかり","口コミ","Instagram","公式LINE","SEO・MEO","HP",
       "チラシ","外部メディア","関係者の紹介","近隣店舗","キッチンカー","店舗スタッフ",
       "取引先","主催イベント","POPUP","予約販売","オーナー・営業","その他"], cols: 6, mobileCols: 3 },
 ];
+
+// 購入理由でこれを選ぶと「来店のみ」扱い（金額入力は不要、日次報告では来客数だけに数える）
+const NO_PURCHASE = "購入なし（来店のみ）";
 
 let selections = {};
 let history = [];
@@ -354,7 +366,14 @@ function handleSelect(catId, option) {
 function resetAll() {
   selections = {};
   document.getElementById("memoInput").value = "";
+  document.getElementById("amountInput").value = "";
   updateUI();
+}
+
+function isNoPurchase() { return selections.purchase_reason === NO_PURCHASE; }
+function getAmount() {
+  const v = parseInt(document.getElementById("amountInput").value, 10);
+  return isNaN(v) ? null : v;
 }
 
 function updateUI() {
@@ -362,11 +381,24 @@ function updateUI() {
   const total = CATEGORIES.length;
   document.getElementById("badge").textContent = `${count}/${total}`;
 
+  // 金額欄：購入なしの時は入力不要
+  const amountInput = document.getElementById("amountInput");
+  const noPurchase = isNoPurchase();
+  amountInput.disabled = noPurchase;
+  if (noPurchase) amountInput.value = "";
+  amountInput.placeholder = noPurchase ? "購入なしのため金額は不要です" : "💴 会計金額（税込）";
+  const amountOk = noPurchase || (getAmount() !== null && getAmount() > 0);
+  document.getElementById("amountWrap").classList.toggle("required", count === total && !amountOk);
+
   // Both submit buttons
   ["submitBtn", "submitBtnFixed"].forEach(id => {
     const btn = document.getElementById(id);
     if (!btn) return;
-    if (count === total) {
+    if (count === total && !amountOk) {
+      btn.textContent = "金額を入力してください";
+      btn.style.backgroundColor = "#AAB2BD";
+      btn.style.opacity = "0.45";
+    } else if (count === total) {
       btn.textContent = "登録する";
       btn.style.backgroundColor = "#E8553A";
       btn.style.opacity = "1";
@@ -399,6 +431,12 @@ function updateUI() {
 
 async function handleSubmit() {
   const count = Object.keys(selections).length;
+  const amount = isNoPurchase() ? 0 : getAmount();
+  if (count === CATEGORIES.length && !isNoPurchase() && !(amount > 0)) {
+    showToast("会計金額を入力してください", "warn");
+    document.getElementById("amountInput").focus();
+    return;
+  }
   if (count < CATEGORIES.length) {
     const missing = CATEGORIES.filter(c => !selections[c.id]).map(c => c.label).join("、");
     showToast(`未選択: ${missing}`, "warn");
@@ -413,9 +451,11 @@ async function handleSubmit() {
   history.unshift(entry);
   if (history.length > 30) history.pop();
 
-  const savedSelections = { ...selections, memo };
+  entry.amount = amount;
+  const savedSelections = { ...selections, memo, amount };
   selections = {};
   memoInput.value = "";
+  document.getElementById("amountInput").value = "";
   updateUI();
   renderHistory();
 
@@ -490,6 +530,7 @@ function renderHistory() {
           ${CATEGORIES.map(cat =>
             `<span class="history-tag" style="background:${cat.colorLight};color:${cat.color}">${entry[cat.id]}</span>`
           ).join("")}
+          ${entry.amount > 0 ? `<span class="history-tag" style="background:#EDEFF2;color:#333">¥${Number(entry.amount).toLocaleString()}</span>` : ""}
           ${entry.memo ? `<span class="history-tag" style="background:#F0F0F0;color:#555">📝 ${entry.memo}</span>` : ""}
         </div>
       </div>
@@ -601,6 +642,8 @@ document.getElementById("cashEveningModalLater").addEventListener("click", () =>
 document.getElementById("cashEveningModalGo").addEventListener("click", () => {
   window.location.href = "cash-count.html?session=evening";
 });
+
+document.getElementById("amountInput").addEventListener("input", updateUI);
 
 init();
 checkCashStatus();
