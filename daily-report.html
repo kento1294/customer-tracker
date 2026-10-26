@@ -295,6 +295,12 @@
   const recalcBtn = document.getElementById("recalcBtn");
 
   // overwrite=false：空欄だけ埋める / true：自動入力の項目をすべて上書き
+  function aggCountText(res) {
+    let t = `この日の客層記録：店頭 ${res.records}件`;
+    if (res.otherLocation > 0) t += `（ほかに店頭以外 ${res.otherLocation}件は集計対象外）`;
+    return t;
+  }
+
   async function applyAggregate(overwrite) {
     recalcBtn.disabled = true;
     autoMsg.textContent = "客層記録を集計しています…";
@@ -303,7 +309,9 @@
       if (!res || !res.success) throw new Error((res && res.message) || "集計に失敗しました");
 
       if (res.records === 0) {
-        autoMsg.textContent = "この日の客層記録（店頭）はまだありません。";
+        autoMsg.textContent = res.otherLocation > 0
+          ? `この日の店頭の客層記録はありません（店頭以外 ${res.otherLocation}件は集計対象外）。`
+          : "この日の客層記録（店頭）はまだありません。";
         return;
       }
       AUTO_KEYS.forEach(key => {
@@ -314,7 +322,7 @@
           input.classList.add("auto");
         }
       });
-      let msg = `客層記録（店頭 ${res.records}件）から集計しました。<strong>青い欄</strong>が自動入力です。確認・修正してから記録してください。`;
+      let msg = `${aggCountText(res)} を集計しました。<strong>青い欄</strong>が自動入力です。確認・修正してから記録してください。`;
       if (res.missingAmount > 0) {
         msg += `<br><span class="warn">⚠️ 金額が入っていない会計が${res.missingAmount}件あります。売上金額が少なく出ている可能性があります。</span>`;
       }
@@ -337,7 +345,14 @@
   async function loadForDate() {
     const recorded = await checkExisting();
     if (recorded) {
-      autoMsg.innerHTML = "この日はすでに記録済みのため、記録済みの数値を表示しています。客層記録の集計で入れ直す場合は下のボタンを押してください。";
+      // 記録済みの数値を表示。記録したあとに客層記録が増えていることがあるので、今の件数も見せる
+      let countText = "";
+      try {
+        const res = await jsonp({ action: "getDailyAggregate", date: dateInput.value });
+        if (res && res.success) countText = `<br>現在の${aggCountText(res)}。`;
+      } catch (e) {}
+      autoMsg.innerHTML = "この日はすでに記録済みのため、<strong>前回記録した数値</strong>を表示しています。" + countText +
+        "<br>記録したあとに客層を登録した場合は、下のボタンで最新の集計に入れ直してから記録し直してください。";
     } else {
       await applyAggregate(false);
     }
