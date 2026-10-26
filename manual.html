@@ -4,6 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>客層記録アプリ 操作マニュアル</title>
+<!-- ===== テストモード（研修用）共通：マニュアルの研修タブで切り替え ===== -->
+<script>
+(function () {
+  var t = false;
+  try { t = localStorage.getItem("ct_mode") === "test"; } catch (e) {}
+  window.CT_TEST = t;
+  if (t) document.documentElement.classList.add("test-mode");
+  // GASへ送るパラメータにテストモードの印を付ける（テスト用シートに書き込まれる）
+  window.ctMode = function (o) { if (window.CT_TEST) o.mode = "test"; return o; };
+})();
+</script>
+<style>
+  .test-strip { display: none; }
+  html.test-mode .test-strip {
+    display: block; background: #F39C12; color: #fff; text-align: center;
+    font-size: 13px; font-weight: 800; padding: 5px 10px; letter-spacing: 0.03em;
+    font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  }
+  html.test-mode .test-strip a { color: #fff; text-decoration: underline; margin-left: 8px; font-weight: 700; }
+  html.test-mode body::after {
+    content: ""; position: fixed; inset: 0; border: 4px solid #F39C12;
+    pointer-events: none; z-index: 3000;
+  }
+</style>
+
 <style>
   :root {
     --bg: #ECEEF2;
@@ -30,6 +55,18 @@
     top: 0;
     z-index: 20;
   }
+  .mode-status { font-size: 13px; font-weight: 700; padding: 8px 12px; border-radius: 8px; margin: 10px 0; }
+  .mode-status.on { background: #FFF4E5; color: #B7791F; }
+  .mode-status.off { background: #E8F8F3; color: #10AC84; }
+  .mode-btn {
+    display: block; width: 100%; padding: 13px 0; margin-top: 8px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 800; font-family: inherit; cursor: pointer; color: #fff;
+  }
+  .mode-btn.start { background: #F39C12; }
+  .mode-btn.end { background: #10AC84; }
+  .mode-btn.reset { background: #E74C3C; }
+  .mode-btn:disabled { background: #C9CDD3; cursor: default; }
+  .mode-result { font-size: 12.5px; margin-top: 8px; }
   .back-link { display: inline-block; font-size: 13px; color: var(--muted); text-decoration: none; margin-bottom: 6px; }
   header h1 {
     font-size: 18px;
@@ -204,6 +241,7 @@
 </style>
 </head>
 <body>
+<div class="test-strip">🧪 テストモード（研修用）：本番のデータには記録されません</div>
 
 <header>
   <a class="back-link" href="index.html">← アプリに戻る</a>
@@ -214,6 +252,7 @@
     <button class="tab-btn" data-tab="guide">使い方</button>
     <button class="tab-btn" data-tab="report">日次報告 項目説明</button>
     <button class="tab-btn" data-tab="trouble">トラブルシューティング</button>
+    <button class="tab-btn" data-tab="training">🧪 研修</button>
     <button class="tab-btn" data-tab="admin">管理者向け</button>
   </div>
 </header>
@@ -669,6 +708,53 @@
   </div>
 
   <!-- ===== 管理者向け ===== -->
+  <!-- ===== 研修（テストモード） ===== -->
+  <div class="panel" id="panel-training">
+
+    <div class="card">
+      <h2>🧪 テストモード（研修用）</h2>
+      <p>新しいスタッフの研修や操作の練習に使うモードです。画面も操作も本番と同じですが、記録は<strong>「【テスト】」と付いた練習用のシート</strong>に保存され、本番のデータには一切記録されません。</p>
+      <div class="mode-status" id="modeStatus"></div>
+      <button class="mode-btn start" id="startTestBtn">🧪 テストモードで始める</button>
+      <button class="mode-btn end" id="endTestBtn">✅ 通常モードに戻る</button>
+      <p style="font-size:12px; color:var(--muted); margin-top:8px;">テストモード中は、すべての画面の上にオレンジの帯が出て、画面のふちもオレンジになります。帯の「終了する」からもこのページに戻れます。</p>
+    </div>
+
+    <div class="card">
+      <h2>📒 テストモードで練習できること</h2>
+      <table>
+        <tr><th>操作</th><th>練習用の保存先</th></tr>
+        <tr><td>客層記録（6項目＋金額）</td><td>【テスト】客層記録</td></tr>
+        <tr><td>朝・晩の現金カウント</td><td>【テスト】現金カウント</td></tr>
+        <tr><td>日次営業報告（自動入力も含む）</td><td>【テスト】yyyy年mm月営業報告</td></tr>
+      </table>
+      <p>朝・晩のお知らせ（リマインダー）も、練習用の記録をもとに本番と同じように表示されます。</p>
+      <div class="warn-box">
+        ⚠️ <strong>Squareのレジアプリにはテストモードがありません。</strong>ドロワーの開始・入金/出金・終了・締めを実際に操作すると、本番の現金管理履歴に残ります。Squareの操作は「1日の流れ」タブの画面画像で手順を確認する形で練習してください。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🗓️ おすすめの研修の進め方</h2>
+      <ol>
+        <li>このタブで「テストモードで始める」を押す（客層記録の画面が開きます）</li>
+        <li>朝のお知らせ →「今すぐ入力する」→ 金種カウントを入力して記録</li>
+        <li>架空のお客様で客層記録を3〜5件登録（「購入なし（来店のみ）」も1件）</li>
+        <li>💰から晩の現金カウントを記録</li>
+        <li>📊を開き、自動入力された数字が登録した内容と合っているか確認して記録</li>
+        <li>終わったら下の「テストデータを消す」で片付けて、「通常モードに戻る」</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>🧹 テストデータを消す</h2>
+      <p>練習で作られた「【テスト】」で始まるシートをすべて削除します。本番のシートは名前が違うので消えません。テストモード中だけ押せます。</p>
+      <button class="mode-btn reset" id="resetTestBtn">🗑️ テストデータを消す</button>
+      <div class="mode-result" id="resetResult"></div>
+    </div>
+
+  </div>
+
   <div class="panel" id="panel-admin">
 
     <div class="card">
@@ -728,6 +814,7 @@
         <tr><td>checkTodayCashCountStatus</td><td>index.html / cash-count.html</td><td>当日の朝晩カウント状況の取得</td></tr>
         <tr><td>recordDailyReport</td><td>daily-report.html</td><td>日次営業報告の記録</td></tr>
         <tr><td>getDailyReportStatus</td><td>daily-report.html</td><td>指定日の既存記録の取得</td></tr>
+        <tr><td>resetTestData</td><td>manual.html（研修タブ）</td><td>「【テスト】」で始まるシートを削除（テストモードの時だけ）</td></tr>
         <tr><td>getDailyAggregate</td><td>daily-report.html</td><td>指定日の客層記録（店頭）を集計して返す（書き込みはしない）</td></tr>
       </table>
     </div>
@@ -746,6 +833,66 @@
       window.scrollTo({ top: 0, behavior: "instant" });
     });
   });
+  // #training で開いたら研修タブを表示
+  function openTab(name) {
+    const btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
+    if (btn) btn.click();
+  }
+  if (location.hash === "#training") openTab("training");
+
+  // ===== テストモードの切り替え・リセット =====
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyoOMKcAIb4Hxa0SSxXytSiiH2FsbM5KsjUZ_dYO6rp1JHHm6MAvxuoHbp1drwMwN50/exec";
+  function setMode(test) {
+    try {
+      if (test) localStorage.setItem("ct_mode", "test");
+      else localStorage.removeItem("ct_mode");
+      return true;
+    } catch (e) {
+      alert("この端末ではモードを切り替えられませんでした（プライベートブラウズでは使えません）");
+      return false;
+    }
+  }
+  function renderMode() {
+    const st = document.getElementById("modeStatus");
+    st.textContent = window.CT_TEST ? "現在：🧪 テストモード（練習用シートに記録されます）" : "現在：通常モード（本番のシートに記録されます）";
+    st.className = "mode-status " + (window.CT_TEST ? "on" : "off");
+    document.getElementById("startTestBtn").style.display = window.CT_TEST ? "none" : "block";
+    document.getElementById("endTestBtn").style.display = window.CT_TEST ? "block" : "none";
+    document.getElementById("resetTestBtn").disabled = !window.CT_TEST;
+  }
+  document.getElementById("startTestBtn").addEventListener("click", () => {
+    if (!confirm("テストモードで始めますか？\n記録は練習用のシートに保存され、本番には記録されません。")) return;
+    if (setMode(true)) location.href = "index.html";
+  });
+  document.getElementById("endTestBtn").addEventListener("click", () => {
+    if (!confirm("通常モードに戻りますか？\nここからの記録は本番のシートに保存されます。")) return;
+    if (setMode(false)) location.href = "index.html";
+  });
+  document.getElementById("resetTestBtn").addEventListener("click", () => {
+    if (!window.CT_TEST) return;
+    if (!confirm("練習用（【テスト】）のシートをすべて削除します。よろしいですか？")) return;
+    const out = document.getElementById("resetResult");
+    const btn = document.getElementById("resetTestBtn");
+    btn.disabled = true; out.textContent = "削除しています…";
+    const cb = "_resetCb_" + Date.now();
+    const s = document.createElement("script");
+    const timer = setTimeout(() => done({ success: false, message: "タイムアウトしました" }), 15000);
+    function done(res) {
+      clearTimeout(timer); delete window[cb]; s.remove(); btn.disabled = false;
+      if (res && res.success) {
+        out.style.color = "#10AC84";
+        out.textContent = res.deleted.length ? "削除しました：" + res.deleted.join("、") : "削除するテストデータはありませんでした。";
+      } else {
+        out.style.color = "#E74C3C";
+        out.textContent = "削除できませんでした：" + ((res && res.message) || "不明なエラー");
+      }
+    }
+    window[cb] = done;
+    s.src = GAS_URL + "?" + new URLSearchParams({ action: "resetTestData", mode: "test", callback: cb }).toString();
+    s.onerror = () => done({ success: false, message: "通信に失敗しました" });
+    document.body.appendChild(s);
+  });
+  renderMode();
 </script>
 
 </body>
